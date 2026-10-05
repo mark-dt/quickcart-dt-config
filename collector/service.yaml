@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: otel-collector
+spec:
+  selector:
+    app: otel-collector
+  ports:
+    - name: gitlab-webhook
+      port: 19418
+      targetPort: 19418

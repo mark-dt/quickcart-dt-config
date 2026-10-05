@@ -5,43 +5,53 @@
     "version": 21,
     "variables": [
       {
-        "version": 2,
+        "version": 3,
         "key": "Cluster",
+        "name": "Cluster",
         "type": "query",
         "visible": true,
         "editable": true,
-        "multiple": false,
-        "input": "timeseries n = sum(dt.service.request.count), by: {k8s.cluster.name}, filter: startsWith(k8s.namespace.name, \"quickcart-\") | fields k8s.cluster.name | sort k8s.cluster.name asc"
+        "input": "timeseries n = sum(dt.service.request.count), by: {k8s.cluster.name}, filter: startsWith(k8s.namespace.name, \"quickcart-\") | fields k8s.cluster.name | sort k8s.cluster.name asc",
+        "multiple": false
       },
       {
-        "version": 2,
+        "version": 3,
         "key": "Namespace",
+        "name": "Namespace",
         "type": "query",
         "visible": true,
         "editable": true,
-        "multiple": true,
         "input": "timeseries n = sum(dt.service.request.count), by: {k8s.namespace.name}, filter: startsWith(k8s.namespace.name, \"quickcart-\") | fields k8s.namespace.name | sort k8s.namespace.name asc",
-        "defaultValue": "3420b2ac-f1cf-4b24-b62d-61ba1ba8ed05*"
+        "multiple": true,
+        "defaultValue": [
+          "3420b2ac-f1cf-4b24-b62d-61ba1ba8ed05*"
+        ]
       },
       {
-        "version": 2,
+        "version": 3,
         "key": "Service",
+        "name": "Service",
         "type": "query",
         "visible": true,
         "editable": true,
-        "multiple": true,
         "input": "timeseries n = sum(dt.service.request.count), by: {k8s.workload.name}, filter: startsWith(k8s.namespace.name, \"quickcart-\") | fields k8s.workload.name | sort k8s.workload.name asc",
-        "defaultValue": "3420b2ac-f1cf-4b24-b62d-61ba1ba8ed05*"
+        "multiple": true,
+        "defaultValue": [
+          "3420b2ac-f1cf-4b24-b62d-61ba1ba8ed05*"
+        ]
       },
       {
-        "version": 1,
+        "version": 3,
         "key": "Deployments",
+        "name": "Deployments",
         "type": "csv",
         "visible": true,
         "editable": true,
-        "multiple": true,
         "input": "deploy,rollback",
-        "defaultValue": "3420b2ac-f1cf-4b24-b62d-61ba1ba8ed05*"
+        "multiple": true,
+        "defaultValue": [
+          "3420b2ac-f1cf-4b24-b62d-61ba1ba8ed05*"
+        ]
       }
     ],
     "tiles": {
@@ -50,50 +60,78 @@
         "content": "## QuickCart — service performance across stages\nResponse time, failure rate and throughput per **stage** (namespace) and **service**. Vertical markers are deployment events from the GitLab pipeline: **blue = deploy**, **red = rollback** (toggle with the *Deployments* filter). Hover a marker for version, author and pipeline."
       },
       "2": {
-        "type": "data",
         "title": "Response time p90 (ms) per stage / service",
+        "type": "data",
         "query": "timeseries p90 = percentile(dt.service.request.response_time, 90), by: {k8s.namespace.name, k8s.workload.name}, filter: k8s.cluster.name == $Cluster and in(k8s.namespace.name, array($Namespace)) and in(k8s.workload.name, array($Service))\n| fieldsAdd p90_ms = p90[] / 1000\n| fieldsRemove p90",
         "visualization": "lineChart",
         "visualizationSettings": {},
         "querySettings": {}
       },
       "3": {
-        "type": "data",
         "title": "Failure rate (%) per stage / service",
+        "type": "data",
         "query": "timeseries {total = sum(dt.service.request.count), failed = sum(dt.service.request.failure_count)}, by: {k8s.namespace.name, k8s.workload.name}, filter: k8s.cluster.name == $Cluster and in(k8s.namespace.name, array($Namespace)) and in(k8s.workload.name, array($Service))\n| fieldsAdd failure_rate_pct = 100 * failed[] / total[]\n| fieldsRemove total, failed",
         "visualization": "lineChart",
         "visualizationSettings": {},
         "querySettings": {}
       },
       "4": {
-        "type": "data",
         "title": "Average response time (ms) per stage / service",
+        "type": "data",
         "query": "timeseries avg = avg(dt.service.request.response_time), by: {k8s.namespace.name, k8s.workload.name}, filter: k8s.cluster.name == $Cluster and in(k8s.namespace.name, array($Namespace)) and in(k8s.workload.name, array($Service))\n| fieldsAdd avg_ms = avg[] / 1000\n| fieldsRemove avg",
         "visualization": "lineChart",
         "visualizationSettings": {},
         "querySettings": {}
       },
       "5": {
-        "type": "data",
         "title": "Throughput (requests / min) per stage / service",
+        "type": "data",
         "query": "timeseries requests_per_min = sum(dt.service.request.count, rate: 1m), by: {k8s.namespace.name, k8s.workload.name}, filter: k8s.cluster.name == $Cluster and in(k8s.namespace.name, array($Namespace)) and in(k8s.workload.name, array($Service))",
         "visualization": "lineChart",
         "visualizationSettings": {},
         "querySettings": {}
       },
       "6": {
-        "type": "data",
         "title": "Stage comparison (selected timeframe)",
+        "type": "data",
         "query": "timeseries {rt = avg(dt.service.request.response_time), p90 = percentile(dt.service.request.response_time, 90), total = sum(dt.service.request.count), failed = sum(dt.service.request.failure_count)}, by: {k8s.namespace.name, k8s.workload.name}, filter: k8s.cluster.name == $Cluster and in(k8s.namespace.name, array($Namespace)) and in(k8s.workload.name, array($Service))\n| fieldsAdd avg_ms = arrayAvg(rt) / 1000, p90_ms = arrayAvg(p90) / 1000, requests = arraySum(total), failure_rate_pct = 100 * arraySum(failed) / arraySum(total)\n| fields stage = k8s.namespace.name, service = k8s.workload.name, avg_ms, p90_ms, failure_rate_pct, requests\n| sort service asc, stage asc",
         "visualization": "table",
         "visualizationSettings": {},
         "querySettings": {}
       },
       "7": {
-        "type": "data",
         "title": "Deployment log",
+        "type": "data",
         "query": "fetch events\n| filter event.type == \"CUSTOM_DEPLOYMENT\" and deployment.release_product == \"quickcart-demo\"\n| filter k8s.cluster.name == $Cluster and in(k8s.namespace.name, array($Namespace)) and in(service.name, array($Service))\n| fieldsAdd kind = if(endsWith(deployment.name, \" rollback\"), \"rollback\", else: \"deploy\"), stage = replaceString(k8s.namespace.name, \"quickcart-\", \"\")\n| filter in(kind, array($Deployments))\n| dedup {stage, deployment.version, kind}\n| fields time = event.start, stage, kind, version = deployment.version, author = gitlab.merge_request.author, merge_request = gitlab.merge_request.url, pipeline = gitlab.pipeline.url, reason = rollback.reason\n| sort time desc",
         "visualization": "table",
+        "visualizationSettings": {},
+        "querySettings": {}
+      },
+      "8": {
+        "type": "markdown",
+        "content": "## Pipelines (GitLab → OpenTelemetry)\nEvery pipeline run of the VM's GitLab as a trace: pipeline → stages → jobs. `api` runs are rollbacks started by Dynatrace."
+      },
+      "9": {
+        "type": "data",
+        "title": "Pipeline runs",
+        "query": "fetch spans\n| filter k8s.cluster.name == $Cluster and isNotNull(cicd.pipeline.run.id)\n| filter isNull(span.parent_id)\n| fields time = start_time, project = service.name, kind = if(gitlab.pipeline.source == \"api\", \"rollback / API\", else: gitlab.pipeline.source), result = cicd.pipeline.result, duration_min = round(toDouble(duration) / 60000000000.0, decimals: 1), change = splitString(vcs.ref.head.revision.message, \"\\n\")[0], pipeline = cicd.pipeline.run.url.full\n| sort time desc\n| limit 50",
+        "visualization": "table",
+        "visualizationSettings": {},
+        "querySettings": {}
+      },
+      "10": {
+        "type": "data",
+        "title": "Job duration (avg s) and failures",
+        "query": "fetch spans\n| filter k8s.cluster.name == $Cluster and isNotNull(cicd.pipeline.run.id)\n| filter isNotNull(cicd.pipeline.task.run.result)\n| summarize avg_s = round(avg(toDouble(duration)) / 1000000000.0, decimals: 0), runs = count(), failed = countIf(cicd.pipeline.task.run.result != \"success\"), by: {project = service.name, job = span.name}\n| sort project asc, avg_s desc",
+        "visualization": "table",
+        "visualizationSettings": {},
+        "querySettings": {}
+      },
+      "11": {
+        "type": "data",
+        "title": "Pipeline duration (min)",
+        "query": "fetch spans\n| filter k8s.cluster.name == $Cluster and isNotNull(cicd.pipeline.run.id)\n| filter isNull(span.parent_id)\n| makeTimeseries duration_min = max(toDouble(duration) / 60000000000.0), by: {project = service.name}",
+        "visualization": "lineChart",
         "visualizationSettings": {},
         "querySettings": {}
       }
@@ -140,67 +178,102 @@
         "y": 18,
         "w": 12,
         "h": 8
+      },
+      "8": {
+        "x": 0,
+        "y": 26,
+        "w": 24,
+        "h": 2
+      },
+      "9": {
+        "x": 0,
+        "y": 28,
+        "w": 24,
+        "h": 8
+      },
+      "10": {
+        "x": 0,
+        "y": 36,
+        "w": 12,
+        "h": 8
+      },
+      "11": {
+        "x": 12,
+        "y": 36,
+        "w": 12,
+        "h": 8
+      }
+    },
+    "settings": {
+      "defaultTimeframe": {
+        "value": {
+          "from": "now()-2h",
+          "to": "now()"
+        },
+        "enabled": true
       }
     },
     "annotations": [
       {
+        "version": 2,
         "key": "3733b161-da22-4bf0-b2f4-01734c897edb",
         "name": "Deployments",
         "type": "query",
-        "version": 2,
         "input": "fetch events\n| filter event.type == \"CUSTOM_DEPLOYMENT\" and deployment.release_product == \"quickcart-demo\"\n| filter k8s.cluster.name == $Cluster and in(k8s.namespace.name, array($Namespace)) and in(service.name, array($Service))\n| fieldsAdd kind = if(endsWith(deployment.name, \" rollback\"), \"rollback\", else: \"deploy\"), stage = replaceString(k8s.namespace.name, \"quickcart-\", \"\")\n| filter in(kind, array($Deployments))\n| filter kind == \"deploy\"\n| dedup {stage, deployment.version, kind}\n| fields event.start, event.name = concat(stage, \" \", kind, \" \", deployment.version), event.description = concat(stage, \": \", kind, \" \", deployment.version, \" by \", coalesce(gitlab.merge_request.author, \"pipeline\"), \" — \", coalesce(gitlab.pipeline.url, \"\"))",
         "dataMapping": {
           "name": {
             "field": "event.name",
             "type": "string"
           },
-          "start": {
-            "field": "event.start",
-            "type": "timestamp"
-          },
           "description": {
             "field": "event.description",
             "type": "string"
+          },
+          "start": {
+            "field": "event.start",
+            "type": "timestamp"
           }
         },
         "displaySettings": {
-          "color": "#2F6FDE",
           "referenceIds": [
             "2",
             "3",
             "4",
-            "5"
-          ]
+            "5",
+            "11"
+          ],
+          "color": "#2F6FDE"
         }
       },
       {
+        "version": 2,
         "key": "248952f2-1235-4ef3-b713-7321b0a4eef1",
         "name": "Rollbacks",
         "type": "query",
-        "version": 2,
         "input": "fetch events\n| filter event.type == \"CUSTOM_DEPLOYMENT\" and deployment.release_product == \"quickcart-demo\"\n| filter k8s.cluster.name == $Cluster and in(k8s.namespace.name, array($Namespace)) and in(service.name, array($Service))\n| fieldsAdd kind = if(endsWith(deployment.name, \" rollback\"), \"rollback\", else: \"deploy\"), stage = replaceString(k8s.namespace.name, \"quickcart-\", \"\")\n| filter in(kind, array($Deployments))\n| filter kind == \"rollback\"\n| dedup {stage, deployment.version, kind}\n| fields event.start, event.name = concat(stage, \" \", kind, \" \", deployment.version), event.description = concat(stage, \": \", kind, \" \", deployment.version, \" by \", coalesce(gitlab.merge_request.author, \"pipeline\"), \" — \", coalesce(gitlab.pipeline.url, \"\"))",
         "dataMapping": {
           "name": {
             "field": "event.name",
             "type": "string"
           },
-          "start": {
-            "field": "event.start",
-            "type": "timestamp"
-          },
           "description": {
             "field": "event.description",
             "type": "string"
+          },
+          "start": {
+            "field": "event.start",
+            "type": "timestamp"
           }
         },
         "displaySettings": {
-          "color": "#D93B3B",
           "referenceIds": [
             "2",
             "3",
             "4",
-            "5"
-          ]
+            "5",
+            "11"
+          ],
+          "color": "#D93B3B"
         }
       }
     ]

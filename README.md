@@ -7,7 +7,8 @@ source code, deploy manifests and its pipeline.
 | Folder | What | Applied by |
 |---|---|---|
 | `terraform/` | **Quality gate**: Site Reliability Guardian `payment-service quality gate (<cluster>)` (staging failure rate ≤ 1 %, p90 ≤ 500 ms — from the `dt.service.request.*` service metrics) and the workflow `workshop-aiops-lab <cluster> payment-service quality gate` — triggered by the staging deployment event, waits for traffic, validates, and on FAIL triggers the app's GitLab rollback pipeline via the GitLab connector (connection `gitlab <cluster>`) | `.gitlab-ci.yml` in this repo (`terraform apply` on `main`) |
-| `dashboards/` | **QuickCart — service performance across stages**: response time, failure rate, throughput per stage/service with deploy (blue) / rollback (red) markers | `dtctl apply -f dashboards/quickcart-stages.dashboard.json` (once per tenant) |
+| `collector/` | **Pipeline traces**: OpenTelemetry Collector (contrib, `gitlab` receiver) turning GitLab pipeline webhooks into traces (pipeline → stages → jobs) and sending them to Dynatrace via OTLP | ArgoCD app `otel-collector` |
+| `dashboards/` | **QuickCart — GitLab pipelines** (runs, success rate, rollbacks, durations, quality-gate wait) and **QuickCart — service performance across stages**: response time, failure rate, throughput per stage/service, plus pipeline runs, job durations and pipeline duration — with deploy (blue) / rollback (red) markers | `dtctl apply -f dashboards/<file>.dashboard.json` (once per tenant) |
 
 ## Contract with the app repo
 
@@ -23,6 +24,22 @@ agree on these names. Change them together.
 | Workflow title | `workshop-aiops-lab <K8_CLUSTER> <service> quality gate` | `terraform/workflow.tf` | quickcart `quality-gate` job finds the workflow by this exact title |
 | Validate task / result | task `validate`; result `validation_status`, `validation_details[]` | `terraform/workflow.tf`, SRG | quickcart `ci/dt.py gate` |
 | Rollback request | GitLab connector "Trigger a new pipeline" on `main` of `APP_PROJECT`, variables `ROLLBACK=true`, `ROLLBACK_STAGE=staging`, `ROLLBACK_FROM_VERSION`, `ROLLBACK_REASON`, `DT_VALIDATION_URL` | `terraform/workflow.tf` (task `rollback_staging`) | quickcart `rollback` job |
+
+## Collector
+
+Expects a secret `otel-collector` in namespace `otel` (not in git):
+
+| Key | Value |
+|---|---|
+| `GITLAB_WEBHOOK_SECRET` | token of the GitLab project webhooks |
+| `DT_OTLP_ENDPOINT` | `https://<tenant>/api/v2/otlp` |
+| `DT_OTLP_TOKEN` | API token with `openTelemetryTrace.ingest` |
+| `K8_CLUSTER` | added to every span as `k8s.cluster.name` |
+
+GitLab side: a project webhook (Pipeline events) to `http://otel-collector.otel.svc.cluster.local:19418/events`
+with the same secret, and "Allow requests to the local network from webhooks" enabled. In Dynatrace the
+spans have `service.name = <group>/<project>`, `cicd.pipeline.*`, `vcs.*` and `gitlab.pipeline.source`
+(`api` = rollback started by Dynatrace).
 
 ## Pipeline (GitLab)
 

@@ -1,0 +1,38 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-collector
+data:
+  config.yaml: |
+    receivers:
+      gitlab:
+        webhook:
+          endpoint: 0.0.0.0:19418
+          path: /events
+          health_path: /health
+          secret: ${env:GITLAB_WEBHOOK_SECRET}
+          include_user_attributes: true
+
+    processors:
+      resource:
+        attributes:
+          - key: service.name
+            value: gitlab-ci
+            action: insert
+          - key: k8s.cluster.name
+            value: ${env:K8_CLUSTER}
+            action: upsert
+      batch: {}
+
+    exporters:
+      otlp_http:
+        endpoint: ${env:DT_OTLP_ENDPOINT}
+        headers:
+          Authorization: "Api-Token ${env:DT_OTLP_TOKEN}"
+
+    service:
+      pipelines:
+        traces:
+          receivers: [gitlab]
+          processors: [resource, batch]
+          exporters: [otlp_http]
