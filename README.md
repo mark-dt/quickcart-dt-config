@@ -32,7 +32,12 @@ agree on these names. Change them together.
 | push to `main` touching `terraform/` | `apply` |
 | manual, on `main` | `destroy` — removes the guardian and the workflow |
 
-State: GitLab-managed Terraform state of the project. CI/CD variables the pipeline expects:
+**State:** GitLab-managed Terraform state of the project (HTTP backend, configured by the
+pipeline; locking included). Find it under **Operate → Terraform states** (state name `dynatrace`) —
+download, lock/unlock or remove it there. It is deliberately not committed to the repo: the state
+holds every value in plain text, including the GitLab token the workflow uses.
+
+CI/CD variables the pipeline expects:
 
 | Variable | Used for |
 |---|---|
