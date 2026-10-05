@@ -6,7 +6,7 @@ source code, deploy manifests and its pipeline.
 
 | Folder | What | Applied by |
 |---|---|---|
-| `terraform/` | **Quality gate**: Site Reliability Guardian `payment-service quality gate (<cluster>)` (staging failure rate ≤ 1 %, p90 ≤ 500 ms — from the `dt.service.request.*` service metrics) and the workflow `workshop-aiops-lab <cluster> payment-service quality gate` — triggered by the staging deployment event, waits for traffic, validates, and on FAIL starts the app's GitLab rollback pipeline | `.gitlab-ci.yml` in this repo (`terraform apply` on `main`) |
+| `terraform/` | **Quality gate**: Site Reliability Guardian `payment-service quality gate (<cluster>)` (staging failure rate ≤ 1 %, p90 ≤ 500 ms — from the `dt.service.request.*` service metrics) and the workflow `workshop-aiops-lab <cluster> payment-service quality gate` — triggered by the staging deployment event, waits for traffic, validates, and on FAIL triggers the app's GitLab rollback pipeline via the GitLab connector (connection `gitlab <cluster>`) | `.gitlab-ci.yml` in this repo (`terraform apply` on `main`) |
 | `dashboards/` | **QuickCart — service performance across stages**: response time, failure rate, throughput per stage/service with deploy (blue) / rollback (red) markers | `dtctl apply -f dashboards/quickcart-stages.dashboard.json` (once per tenant) |
 
 ## Contract with the app repo
@@ -22,7 +22,7 @@ agree on these names. Change them together.
 | Cluster | `k8s.cluster.name` on the event = `K8_CLUSTER` CI variable in both repos | both | trigger + guardian queries |
 | Workflow title | `workshop-aiops-lab <K8_CLUSTER> <service> quality gate` | `terraform/workflow.tf` | quickcart `quality-gate` job finds the workflow by this exact title |
 | Validate task / result | task `validate`; result `validation_status`, `validation_details[]` | `terraform/workflow.tf`, SRG | quickcart `ci/dt.py gate` |
-| Rollback request | `POST /api/v4/projects/<APP_PROJECT>/pipeline` with `ROLLBACK=true`, `ROLLBACK_STAGE=staging`, `ROLLBACK_FROM_VERSION=<version>` | `terraform/scripts/rollback_staging.js` | quickcart `rollback` job |
+| Rollback request | GitLab connector "Trigger a new pipeline" on `main` of `APP_PROJECT`, variables `ROLLBACK=true`, `ROLLBACK_STAGE=staging`, `ROLLBACK_FROM_VERSION`, `ROLLBACK_REASON`, `DT_VALIDATION_URL` | `terraform/workflow.tf` (task `rollback_staging`) | quickcart `rollback` job |
 
 ## Pipeline (GitLab)
 
@@ -44,8 +44,8 @@ CI/CD variables the pipeline expects:
 | `DT_ENV_URL`, `DT_APPS_URL`, `DT_SSO_URL`, `DT_ACCOUNT_ID` | tenant + OAuth endpoints |
 | `DT_API_TOKEN`, `DT_CLIENT_ID`, `DT_CLIENT_SECRET` | provider credentials (settings / app-settings / automation write) |
 | `K8_CLUSTER` | the cluster the quality gate watches |
-| `APP_PROJECT` | URL-encoded GitLab path of the app project, e.g. `user1%2Fquickcart` |
-| `REPO_PAT` | GitLab token the workflow uses to start the app's rollback pipeline |
+| `APP_PROJECT` | numeric GitLab ID of the app project |
+| `REPO_PAT` | token of the GitLab connection the workflow uses (`api` scope) |
 
 Tuning the gate (`terraform/variables.tf`): `failure_rate_max_pct`, `p90_max_ms`, `soak_seconds`,
 `window`. Change them in a merge request — `plan` shows the diff, merging applies it.

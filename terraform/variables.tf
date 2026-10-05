@@ -23,12 +23,12 @@ variable "gitlab_url" {
 }
 variable "gitlab_project" {
   type        = string
-  description = "URL-encoded path of the app project, e.g. user1%2Fquickcart"
+  description = "Numeric ID of the app project in GitLab"
 }
 variable "gitlab_pat" {
   type        = string
   sensitive   = true
-  description = "Token the workflow uses to start the GitLab rollback pipeline"
+  description = "Token of the GitLab connection (api scope)"
 }
 
 # Quality-gate settings

@@ -1,4 +1,11 @@
 # Quality-gate workflow: staging deployment event -> soak -> validate -> on FAIL roll staging back.
+# GitLab connection used by the rollback task.
+resource "dynatrace_gitlab_connection" "gitlab" {
+  name  = "gitlab ${var.k8s_cluster}"
+  url   = var.gitlab_url
+  token = var.gitlab_pat
+}
+
 resource "dynatrace_automation_workflow" "gate" {
   # The app pipeline finds this workflow by its exact title.
   title       = "workshop-aiops-lab ${var.k8s_cluster} ${var.service} quality gate"
@@ -39,22 +46,24 @@ resource "dynatrace_automation_workflow" "gate" {
     }
     task {
       name        = "rollback_staging"
-      description = "On FAIL: start the GitLab rollback pipeline for staging (ArgoCD syncs the previous version)"
-      action      = "dynatrace.automations:run-javascript"
+      description = "On FAIL: trigger the app's GitLab rollback pipeline for staging"
+      action      = "dynatrace.gitlab.connector:gitlab-trigger-pipeline"
       active      = true
       input = jsonencode({
-        script = templatefile("${path.module}/scripts/rollback_staging.js", {
-          cfg = jsonencode({
-            appsUrl   = var.dt_apps_url
-            gitlabUrl = var.gitlab_url
-            projectId = var.gitlab_project
-            gitlabPat = var.gitlab_pat
-            service   = var.service
-          })
-        })
+        connection = dynatrace_gitlab_connection.gitlab.id
+        projectId  = var.gitlab_project
+        branchId   = "main"
+        variables = [
+          { key = "ROLLBACK", value = "true" },
+          { key = "ROLLBACK_STAGE", value = "staging" },
+          { key = "ROLLBACK_FROM_VERSION", value = "{{ event()[\"deployment.version\"] }}" },
+          { key = "ROLLBACK_REASON", value = "Site Reliability Guardian: FAIL for {{ event()[\"deployment.version\"] }}" },
+          { key = "DT_VALIDATION_URL", value = "{{ result(\"validate\").validation_url }}" },
+        ]
       })
       conditions {
         states = { validate = "OK" }
+        custom = "{{ result(\"validate\").validation_status == \"fail\" }}"
       }
       position {
         x = 0
