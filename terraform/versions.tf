@@ -6,7 +6,7 @@ terraform {
       version = "~> 1.96"
     }
   }
-  # GitLab-managed Terraform state, configured by the pipeline (-backend-config)
+  # GitLab-managed state, configured by the pipeline
   backend "http" {}
 }
 
@@ -14,7 +14,7 @@ provider "dynatrace" {
   dt_env_url   = var.dt_env_url
   dt_api_token = var.dt_api_token
 
-  # Platform resources (guardian, workflow): OAuth client
+  # OAuth client for the guardian and workflow
   client_id                = var.dt_client_id
   client_secret            = var.dt_client_secret
   account_id               = var.dt_account_id

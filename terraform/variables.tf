@@ -1,4 +1,4 @@
-# Provided by the pipeline as TF_VAR_* from this repo's CI/CD variables.
+# Set by the pipeline (TF_VAR_* from CI/CD variables).
 variable "dt_env_url" { type = string }
 variable "dt_apps_url" { type = string }
 variable "dt_sso_url" { type = string }

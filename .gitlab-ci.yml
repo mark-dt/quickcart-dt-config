@@ -1,12 +1,5 @@
-# Dynatrace configuration of this workshop VM, applied to the tenant by this pipeline.
-#
-#   dynakube/    DynaKube — synced into the cluster by ArgoCD (app dynatrace-dynakube)
-#   terraform/   Site Reliability Guardian + quality-gate workflow — applied here
-#
-# merge request: terraform plan (shown in the job log)
-# push to main:  terraform apply
-# destroy:       manual job on main — removes the guardian + workflow from the tenant
-# State: GitLab-managed Terraform state of this project.
+# Applies terraform/ (guardian + quality-gate workflow) to the tenant.
+# MR: plan · main: apply · manual: destroy. State: GitLab-managed.
 
 workflow:
   rules:

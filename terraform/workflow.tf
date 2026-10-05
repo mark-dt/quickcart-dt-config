@@ -1,6 +1,4 @@
-# Quality-gate workflow: the staging deployment event (sent by the app
-# pipeline) triggers it -> traffic soak -> validate the guardian -> on FAIL
-# start the app's GitLab rollback pipeline for staging.
+# Quality-gate workflow: staging deployment event -> soak -> validate -> on FAIL roll staging back.
 resource "dynatrace_automation_workflow" "gate" {
   # The app pipeline finds this workflow by its exact title.
   title       = "workshop-aiops-lab ${var.k8s_cluster} ${var.service} quality gate"
@@ -12,8 +10,7 @@ resource "dynatrace_automation_workflow" "gate" {
       config {
         event {
           event_type = "events"
-          # Classic events API stores dt.event.deployment.<x> as deployment.<x>.
-          # Rollback events ("<svc> rollback") deliberately don't match.
+          # Event fields are stored as deployment.<x>; rollback events don't match.
           query = "event.type == \"CUSTOM_DEPLOYMENT\" AND deployment.release_product == \"${var.release_product}\" AND deployment.release_stage == \"staging\" AND deployment.name == \"${var.service} deploy\" AND k8s.cluster.name == \"${var.k8s_cluster}\""
         }
       }

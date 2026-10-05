@@ -1,8 +1,5 @@
-// rollback_staging — act on the Site Reliability Guardian verdict for a staging
-// deployment: on FAIL, start the GitLab rollback pipeline for staging (ArgoCD
-// syncs the previous version). The release pipeline reads the same verdict and
-// does not promote to production.
-// Rendered by Terraform (service.tf); CFG is injected as JSON.
+// On guardian FAIL: start the app's GitLab rollback pipeline for staging.
+// CFG is injected by Terraform.
 import { execution } from '@dynatrace-sdk/automation-utils';
 
 const CFG = ${cfg};
@@ -49,8 +46,7 @@ export default async function ({ execution_id }) {
       variables: [
         { key: 'ROLLBACK', value: 'true' },
         { key: 'ROLLBACK_STAGE', value: 'staging' },
-        // Idempotency: duplicate service entities can fire this workflow twice
-        // for one deployment — the pipeline only rolls back from this version.
+        // The pipeline only rolls back if staging still runs this version.
         { key: 'ROLLBACK_FROM_VERSION', value: version },
         { key: 'ROLLBACK_SERVICE', value: CFG.service },
         { key: 'ROLLBACK_REASON', value: 'Site Reliability Guardian: ' + verdict.toUpperCase() + ' for ' + version },

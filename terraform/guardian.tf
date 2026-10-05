@@ -1,14 +1,10 @@
-# Site Reliability Guardian: is the new version in staging good enough?
+# Site Reliability Guardian for the service in staging.
 resource "dynatrace_site_reliability_guardian" "gate" {
   name        = "${var.service} quality gate (${var.k8s_cluster})"
   description = "Quality gate for ${var.service} in staging on ${var.k8s_cluster}; run by the quality-gate workflow after every staging deployment."
   tags        = ["service:${var.service}", "stage:staging", "k8s.cluster.name:${var.k8s_cluster}"]
 
-  # Service metrics (dt.service.request.*), not spans: same results (checked
-  # against the span queries on real PASS/FAIL windows), much cheaper, and the
-  # same data the dashboard shows. Note: they include the Kubernetes readiness
-  # probes (GET /health, never failing) — that dilutes the failure rate by
-  # about half, hence the strict default target (failure_rate_max_pct = 1).
+  # Objectives on service metrics (dt.service.request.*), incl. /health probes.
   objectives {
     objective {
       name                = "Failure rate"
