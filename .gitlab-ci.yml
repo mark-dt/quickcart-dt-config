@@ -1,0 +1,57 @@
+# Dynatrace configuration of this workshop VM, applied to the tenant by this pipeline.
+#
+#   dynakube/    DynaKube — synced into the cluster by ArgoCD (app dynatrace-dynakube)
+#   terraform/   Site Reliability Guardian + quality-gate workflow — applied here
+#
+# merge request: terraform plan (shown in the job log)
+# push to main:  terraform apply
+# destroy:       manual job on main — removes the guardian + workflow from the tenant
+# State: GitLab-managed Terraform state of this project.
+
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+default:
+  tags: [self-hosted]
+  before_script:
+    - |
+      export TF_IN_AUTOMATION=1 TF_INPUT=0 TF_PLUGIN_CACHE_DIR=/opt/gitlab-runner/terraform-plugins
+      mkdir -p "${TF_PLUGIN_CACHE_DIR}"
+      export TF_VAR_dt_env_url="${DT_ENV_URL}" TF_VAR_dt_apps_url="${DT_APPS_URL}" TF_VAR_dt_sso_url="${DT_SSO_URL}"
+      export TF_VAR_dt_account_id="${DT_ACCOUNT_ID}" TF_VAR_dt_api_token="${DT_API_TOKEN}"
+      export TF_VAR_dt_client_id="${DT_CLIENT_ID}" TF_VAR_dt_client_secret="${DT_CLIENT_SECRET}"
+      export TF_VAR_k8s_cluster="${K8_CLUSTER}" TF_VAR_gitlab_url="${CI_SERVER_URL}"
+      export TF_VAR_gitlab_project="${APP_PROJECT}" TF_VAR_gitlab_pat="${REPO_PAT}"
+      STATE="${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/terraform/state/dynatrace"
+      terraform -chdir=terraform init -reconfigure \
+        -backend-config="address=${STATE}" \
+        -backend-config="lock_address=${STATE}/lock" \
+        -backend-config="unlock_address=${STATE}/lock" \
+        -backend-config="lock_method=POST" -backend-config="unlock_method=DELETE" \
+        -backend-config="username=gitlab-ci-token" -backend-config="password=${CI_JOB_TOKEN}" \
+        -backend-config="retry_wait_min=5"
+
+plan:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes: [terraform/**/*]
+  script:
+    - terraform -chdir=terraform plan -no-color
+
+apply:
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes: [terraform/**/*]
+    - if: $CI_PIPELINE_SOURCE =~ /^(web|api)$/
+  script:
+    - terraform -chdir=terraform apply -no-color -auto-approve
+
+destroy:
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      when: manual
+  allow_failure: true
+  script:
+    - terraform -chdir=terraform destroy -no-color -auto-approve

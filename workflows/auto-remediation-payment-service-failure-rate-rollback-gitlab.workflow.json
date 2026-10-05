@@ -1,0 +1,145 @@
+{
+  "title": "Auto-Remediation: Payment Service Failure Rate Rollback (GitLab)",
+  "description": "Detects high failure rate on payment-service via Davis and triggers the GitLab bad-release pipeline with ACTION=rollback to reset the failure rate to zero.",
+  "isPrivate": true,
+  "schemaVersion": 4,
+  "trigger": {
+    "eventTrigger": {
+      "isActive": false,
+      "triggerConfiguration": {
+        "type": "davis-problem",
+        "value": {
+          "categories": {
+            "error": true
+          },
+          "entityTags": {
+            "k8s.cluster.name": [
+              "dynakube-aiops-lab-de-vm-2"
+            ]
+          },
+          "customFilter": "",
+          "analysisReady": false,
+          "onProblemClose": false,
+          "entityTagsMatch": "all",
+          "triggerOnUpdateFields": [],
+          "triggerOn": null,
+          "problemOpenDuration": null
+        }
+      }
+    }
+  },
+  "result": null,
+  "type": "STANDARD",
+  "input": {},
+  "hourlyExecutionLimit": 1000,
+  "guide": null,
+  "tasks": {
+    "send_email_1": {
+      "name": "send_email_1",
+      "input": {
+        "cc": [],
+        "to": [
+          "you@example.com"
+        ],
+        "bcc": [],
+        "content": "## Auto-remediation fired 🚀\n\n  Davis detected a problem on **`payment-service`** in cluster\n  `__CLUSTER_NAME__` and this workflow has automatically\n  triggered the rollback pipeline in GitLab.\n\n  ### Problem details\n\n  | Field | Value |\n  |---|---|\n  | Problem | **{{ result(\"extract_event_details\").problemTitle }}** |\n  | Problem ID | `{{ result(\"extract_event_details\").problemId }}` |\n  | Status | `{{ result(\"extract_event_details\").status }}` |\n  | Root cause | [Bad release pipeline]({{ result(\"extract_event_details\").deploymentUrl }}) |\n  | Affected entities | `{{ result(\"extract_event_details\").affectedEntities }}` |\n  | Detected at | `{{ result(\"extract_event_details\").startTime }}` |\n\n  ### Action taken\n\n  The workflow ran the bad-release pipeline with `BAD_RELEASE_SERVICE=payment-service`, `ACTION=rollback`,\n  which resets `payment-service`'s injected failure rate to **0**. A new\n  deployment rolls out automatically in ~60 seconds and a\n  `CUSTOM_DEPLOYMENT` event is fired back into Dynatrace.\n\n  - 📈 [Open the problem in Dynatrace]({{ result(\"extract_event_details\").dtUrl }})\n  - 🛠 [GitLab pipeline that fired]({{ result(\"extract_event_details\").deploymentUrl }})\n\n  ### What to verify\n\n  1. Failure-rate timeseries on the **Exercise 1** notebook drops back to 0\n     within ~2 minutes.\n  2. A new `CUSTOM_DEPLOYMENT` event for `payment-service` appears in\n     `fetch events | filter event.kind == \"CUSTOM_DEPLOYMENT\"`.\n  3. Davis closes the problem on its own once the metric recovers.\n\n  _If the failure-rate doesn't drop, the rollback pipeline failed — open\n  the GitLab pipeline link above for the job log._\n",
+        "subject": " 🔧 Auto-remediation triggered — payment-service rollback in progress (P-{{ result(\"extract_event_details\").problemId }})"
+      },
+      "action": "dynatrace.email:send-email",
+      "active": false,
+      "position": {
+        "x": 0,
+        "y": 4
+      },
+      "conditions": {
+        "states": {
+          "trigger_gitlab_rollback": "OK"
+        }
+      },
+      "description": "Send email",
+      "predecessors": [
+        "trigger_gitlab_rollback"
+      ]
+    },
+    "fetch_event_details": {
+      "name": "fetch_event_details",
+      "input": {
+        "query": "fetch events, from:now()-25h\n| filter event.type == \"CUSTOM_DEPLOYMENT\"\n| filter environment == \"__CLUSTER_NAME__\"\n| filter dt.entity.service.name == \"payment-service\"\n| filter event.name == \"payment-service deploy-bad-release\"\n| filter isNotNull(deployment.url)\n| dedup {deployment.url}, sort:{timestamp desc}\n| sort timestamp desc\n| fields `lookup.deployment.url` = deployment.url\n| limit 1"
+      },
+      "action": "dynatrace.automations:execute-dql-query",
+      "position": {
+        "x": 0,
+        "y": 1
+      },
+      "description": "Make use of Dynatrace Grail data in your workflow.",
+      "predecessors": []
+    },
+    "extract_event_details": {
+      "name": "extract_event_details",
+      "input": {
+        "script": "import { execution } from '@dynatrace-sdk/automation-utils';\n\n\nexport default async function ({ execution_id }) {\n  const exec = await execution(execution_id);\n\n  const ex = await fetch(`/platform/automation/v1/executions/${execution_id}`);\n  const data = await ex.json();\n  const event = data.params?.event || {};\n  const problemTitle = event['event.name'] || 'Unknown problem';\n  const problemId = event['event.id'] || 'N/A';\n  const status = event['event.status'] || 'OPEN';\n  const affectedEntities = (event['affected_entity_ids'] || []).join(', ') || 'N/A';\n  const rootCause = event['root_cause_entity_name'] || 'Unknown';\n  const startTime = event['event.start'] || new Date().toISOString();\n  const dtUrl = event['dt.davis.mute_url']?.replace('/mute', '') || '';\n  const deployment = await exec.result('fetch_event_details');\n  console.log(deployment.records[0][\"lookup.deployment.url\"])\n\n  return {\n    deploymentUrl: deployment.records[0][\"lookup.deployment.url\"],\n    problemTitle,\n    problemId,\n    status,\n    affectedEntities,\n    rootCause,\n    startTime,\n    dtUrl\n  };\n}",
+        "sdkMajorVersions": {
+          "@dynatrace-sdk/units": "1",
+          "@dynatrace-sdk/client-hub": "2",
+          "@dynatrace-sdk/client-iam": "1",
+          "@dynatrace-sdk/adhoc-utils": "1",
+          "@dynatrace-sdk/http-client": "1",
+          "@dynatrace-sdk/client-query": "1",
+          "@dynatrace-sdk/shared-errors": "1",
+          "@dynatrace-sdk/error-handlers": "1",
+          "@dynatrace-sdk/app-environment": "1",
+          "@dynatrace-sdk/client-document": "1",
+          "@dynatrace-sdk/automation-utils": "2",
+          "@dynatrace-sdk/user-preferences": "1",
+          "@dynatrace-sdk/client-automation": "8",
+          "@dynatrace-sdk/client-hub-catalog": "0",
+          "@dynatrace-sdk/shared-client-utils": "1",
+          "@dynatrace-sdk/client-resource-store": "1",
+          "@dynatrace-sdk/client-davis-analyzers": "1",
+          "@dynatrace-sdk/client-bucket-management": "3",
+          "@dynatrace-sdk/client-app-engine-registry": "3",
+          "@dynatrace-sdk/client-classic-environment-v1": "2",
+          "@dynatrace-sdk/client-classic-environment-v2": "6",
+          "@dynatrace-sdk/client-app-engine-edge-connect": "1",
+          "@dynatrace-sdk/client-filter-segment-management": "1",
+          "@dynatrace-sdk/client-platform-management-service": "1"
+        }
+      },
+      "action": "dynatrace.automations:run-javascript",
+      "position": {
+        "x": 0,
+        "y": 2
+      },
+      "conditions": {
+        "states": {
+          "fetch_event_details": "OK"
+        }
+      },
+      "description": "Run custom JavaScript code.",
+      "predecessors": [
+        "fetch_event_details"
+      ]
+    },
+    "trigger_gitlab_rollback": {
+      "name": "trigger_gitlab_rollback",
+      "input": {
+        "script": "import { execution } from '@dynatrace-sdk/automation-utils';\n\nexport default async function ({ execution_id }) {\n  const exec = await execution(execution_id);\n  const result = await exec.result('extract_event_details');\n\n  // ↓↓↓ paste from your VM's overview notebook ↓↓↓\n  const GITLAB_USER = \"userN\";\n  const GITLAB_PAT  = \"<your GitLab PAT>\";\n  // ↑↑↑ paste from your VM's overview notebook ↑↑↑\n\n  // Which service's bad release to roll back. Match the service that's\n  // failing in your VM:\n  const SERVICE = \"payment-service\";\n  // Alternatives: \"order-service\", \"inventory-service\"\n\n  // deploymentUrl is the GitLab pipeline that shipped the bad release:\n  //   \"https://gitlab.34.140.133.0.nip.io/user1/quickcart/-/pipelines/12\"\n  // Pull the base URL + project path from it so the same workflow works no\n  // matter which VM fired the event.\n  const m = result.deploymentUrl.match(\n    /^(https?:\\/\\/[^/]+)\\/(.+)\\/-\\/pipelines\\/\\d+/\n  );\n  if (!m) {\n    throw new Error(`Could not parse deploymentUrl: ${result.deploymentUrl}`);\n  }\n  const [, gitlabBase, projectPath] = m;\n\n  // GitLab \"create pipeline\" API — the .gitlab-ci.yml runs the bad-release\n  // jobs whenever BAD_RELEASE_SERVICE is set; ACTION=rollback restores it.\n  const url = `${gitlabBase}/api/v4/projects/${encodeURIComponent(projectPath)}/pipeline`;\n\n  const response = await fetch(url, {\n    method: \"POST\",\n    headers: {\n      \"Accept\":        \"application/json\",\n      \"Content-Type\":  \"application/json\",\n      \"PRIVATE-TOKEN\": GITLAB_PAT,\n    },\n    body: JSON.stringify({\n      ref: \"main\",\n      variables: [\n        { key: \"BAD_RELEASE_SERVICE\", value: SERVICE },\n        { key: \"ACTION\",              value: \"rollback\" },\n      ],\n    }),\n  });\n\n  const text = await response.text();\n  console.log(`GitLab create pipeline ${response.status}: ${text}`);\n\n  let pipelineUrl = null;\n  try { pipelineUrl = JSON.parse(text).web_url || null; } catch (e) { /* non-JSON error body */ }\n\n  return {\n    status:   response.status,\n    success:  response.status === 201,\n    gitlabBase, projectPath, service: SERVICE, user: GITLAB_USER,\n    pipelineUrl,\n    body:     text,\n  };\n}\n"
+      },
+      "action": "dynatrace.automations:run-javascript",
+      "active": false,
+      "position": {
+        "x": 0,
+        "y": 3
+      },
+      "conditions": {
+        "states": {
+          "extract_event_details": "OK"
+        }
+      },
+      "description": "Run custom JavaScript code.",
+      "predecessors": [
+        "extract_event_details"
+      ]
+    }
+  }
+}

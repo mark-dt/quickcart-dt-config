@@ -1,0 +1,91 @@
+{
+  "title": "Predictive PVC Usage",
+  "description": "",
+  "isPrivate": true,
+  "schemaVersion": 4,
+  "trigger": {},
+  "result": null,
+  "type": "STANDARD",
+  "input": {},
+  "hourlyExecutionLimit": 1000,
+  "guide": null,
+  "tasks": {
+    "send_email_1": {
+      "name": "send_email_1",
+      "input": {
+        "cc": [],
+        "to": [
+          "you@example.com"
+        ],
+        "bcc": [],
+        "content": "# 🚨 PVC Disk Capacity Alert\n\n> **Davis® forecasts that a PersistentVolumeClaim will run out of space within the next few hours.**\n\n---\n\n## 📊 What Davis detected\n\n| | |\n|---|---|\n| 🔮 **Signal** | `dt.kubernetes.persistentvolumeclaim.used` |\n| 📈 **Model** | Davis® Generic Forecast — 90% coverage, 200 paths |\n| ⏳ **Horizon** | next several hours |\n| 🚧 **Threshold** | **2 GiB** projected usage |\n| 🧭 **Scope** | per `k8s.cluster.name` / `k8s.persistent_volume_claim.name` |\n\n---\n\n## ⚠️ Why it matters\n\nWhen a PVC fills up, the workload writing to it can no longer persist data — pods may **crash-loop**, **fail readiness checks**, or **silently lose writes**. Acting *before* the volume is full turns a midnight outage into a routine change.\n\n## 🛠️ Recommended actions\n\n1. **🔍 Inspect** — identify the PVC and the pod(s) writing to it.\n2. **🧹 Reclaim space** — rotate or compact logs, clear temp data, prune old artifacts.\n3. **📦 Expand the PVC** — raise the storage request if the growth is legitimate.\n4. **📉 Re-check the forecast** — confirm the predicted curve flattens after remediation.\n\n---\n\n🔗 **Open the workflow execution** to view the predicted curve and the exact volume at risk.\n\n_Sent automatically by the **Predictive PVC Usage** workflow · powered by Dynatrace Davis® AI_ ✨",
+        "subject": "🚨 Disk Capacity Forecast — a PVC is projected to fill within hours ⏳"
+      },
+      "action": "dynatrace.email:send-email",
+      "active": false,
+      "position": {
+        "x": 0,
+        "y": 3
+      },
+      "conditions": {
+        "custom": "{{result(\"analyze_prediction\")}}",
+        "states": {
+          "analyze_prediction": "SUCCESS"
+        }
+      },
+      "description": "Send email",
+      "predecessors": [
+        "analyze_prediction"
+      ]
+    },
+    "analyze_prediction": {
+      "name": "analyze_prediction",
+      "input": {
+        "script": "import { execution } from '@dynatrace-sdk/automation-utils';\n\nconst TASK_ID = 'predict_disk_capacity';\nconst THRESHOLD = 2 * 1024 * 1024 * 1024; // 2GiB in bytes\n\nexport default async function ({ execution_id }) {\n  const exe = await execution(execution_id);\n  const predResult = await exe.result(TASK_ID);\n  const result = predResult.result;\n\n  for (const item of result.output) {\n    const rec = item.timeSeriesDataWithPredictions.records[0];\n    const series = rec['dt.davis.forecast:upper'] || rec['dt.davis.forecast:point'];\n\n    for (const v of series) {\n      if (v != null && v >= THRESHOLD) return true;\n    }\n  }\n\n  return false;\n}"
+      },
+      "action": "dynatrace.automations:run-javascript",
+      "position": {
+        "x": 0,
+        "y": 2
+      },
+      "conditions": {
+        "states": {
+          "predict_disk_capacity": "OK"
+        }
+      },
+      "description": "Run custom JavaScript code.",
+      "predecessors": [
+        "predict_disk_capacity"
+      ]
+    },
+    "predict_disk_capacity": {
+      "name": "predict_disk_capacity",
+      "input": {
+        "body": {
+          "nPaths": 200,
+          "forecastOffset": 0,
+          "timeSeriesData": "timeseries { avg(dt.kubernetes.persistentvolumeclaim.used), value.A = avg(dt.kubernetes.persistentvolumeclaim.used, scalar: true) }, by: { k8s.cluster.name, k8s.persistent_volume_claim.name }",
+          "forecastHorizon": 200,
+          "generalParameters": {
+            "timeframe": {
+              "endTime": "now",
+              "startTime": "now()-6h"
+            },
+            "logVerbosity": "WARNING",
+            "resolveDimensionalQueryData": false
+          },
+          "coverageProbability": 0.9,
+          "applyZeroLowerBoundHeuristic": true
+        },
+        "analyzerName": "dt.statistics.GenericForecastAnalyzer"
+      },
+      "action": "dynatrace.davis.workflow.actions:davis-analyze",
+      "position": {
+        "x": 0,
+        "y": 1
+      },
+      "description": "Execute a customizable AI/ML task using data analyzers",
+      "predecessors": []
+    }
+  }
+}
