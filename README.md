@@ -8,7 +8,7 @@ source code, deploy manifests and its pipeline.
 |---|---|---|
 | `terraform/` | **Quality gate**: Site Reliability Guardian `payment-service quality gate (<cluster>)` (staging failure rate ≤ 1 %, p90 ≤ 500 ms — from the `dt.service.request.*` service metrics) and the workflow `workshop-aiops-lab <cluster> payment-service quality gate` — triggered by the staging deployment event, waits for traffic, validates, and on FAIL triggers the app's GitLab rollback pipeline via the GitLab connector (connection `gitlab <cluster>`) | `.gitlab-ci.yml` in this repo (`terraform apply` on `main`) |
 | `collector/` | **Pipeline traces**: OpenTelemetry Collector (contrib, `gitlab` receiver) turning GitLab pipeline webhooks into traces (pipeline → stages → jobs) and sending them to Dynatrace via OTLP | ArgoCD app `otel-collector` |
-| `dashboards/` | **QuickCart — GitLab pipelines** (runs, success rate, rollbacks, durations, quality-gate wait) and **QuickCart — service performance across stages**: response time, failure rate, throughput per stage/service, plus pipeline runs, job durations and pipeline duration — with deploy (blue) / rollback (red) markers | `dtctl apply -f dashboards/<file>.dashboard.json` (once per tenant) |
+| `dashboards/` | **GitLab pipelines** (runs, success rate, rollbacks, durations, quality-gate wait) and **QuickCart — service performance across stages**: response time, failure rate, throughput per stage/service, plus pipeline runs, job durations and pipeline duration — with deploy (blue) / rollback (red) markers | `dtctl apply -f dashboards/<file>.dashboard.json` (once per tenant) |
 
 ## Contract with the app repo
 
