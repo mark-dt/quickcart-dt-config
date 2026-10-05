@@ -6,7 +6,7 @@ source code, deploy manifests and its pipeline.
 
 | Folder | What | Applied by |
 |---|---|---|
-| `terraform/` | **Quality gate**: Site Reliability Guardian `payment-service quality gate (<cluster>)` (staging failure rate ≤ 2 %, p90 ≤ 500 ms) and the workflow `workshop-aiops-lab <cluster> payment-service quality gate` — triggered by the staging deployment event, waits for traffic, validates, and on FAIL starts the app's GitLab rollback pipeline | `.gitlab-ci.yml` in this repo (`terraform apply` on `main`) |
+| `terraform/` | **Quality gate**: Site Reliability Guardian `payment-service quality gate (<cluster>)` (staging failure rate ≤ 1 %, p90 ≤ 500 ms — from the `dt.service.request.*` service metrics) and the workflow `workshop-aiops-lab <cluster> payment-service quality gate` — triggered by the staging deployment event, waits for traffic, validates, and on FAIL starts the app's GitLab rollback pipeline | `.gitlab-ci.yml` in this repo (`terraform apply` on `main`) |
 | `dashboards/` | **QuickCart — service performance across stages**: response time, failure rate, throughput per stage/service with deploy (blue) / rollback (red) markers | `dtctl apply -f dashboards/quickcart-stages.dashboard.json` (once per tenant) |
 
 ## Contract with the app repo

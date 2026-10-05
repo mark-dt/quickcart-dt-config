@@ -45,8 +45,9 @@ variable "release_product" {
   default = "quickcart-demo"
 }
 variable "failure_rate_max_pct" {
-  type    = number
-  default = 2
+  type        = number
+  default     = 1
+  description = "Max. failure rate (%) in staging. Health probes (never failing) are about half the requests, so 1 % here is about 2 % of real traffic."
 }
 variable "p90_max_ms" {
   type    = number
