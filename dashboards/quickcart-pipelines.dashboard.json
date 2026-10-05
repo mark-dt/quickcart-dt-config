@@ -2,197 +2,161 @@
   "name": "GitLab pipelines",
   "type": "dashboard",
   "content": {
-    "version": 21,
-    "variables": [
+    "annotations": [
       {
-        "version": 3,
-        "key": "Cluster",
-        "name": "Cluster",
+        "dataMapping": {
+          "description": {
+            "field": "event.description",
+            "type": "string"
+          },
+          "name": {
+            "field": "event.name",
+            "type": "string"
+          },
+          "start": {
+            "field": "event.start",
+            "type": "timestamp"
+          }
+        },
+        "displaySettings": {
+          "color": "#2F6FDE",
+          "referenceIds": [
+            "8",
+            "9"
+          ]
+        },
+        "input": "fetch events\n| filter event.type == \"CUSTOM_DEPLOYMENT\" and deployment.release_product == \"quickcart-demo\" and k8s.cluster.name == $Cluster\n| fieldsAdd kind = if(endsWith(deployment.name, \" rollback\"), \"rollback\", else: \"deploy\"), stage = replaceString(k8s.namespace.name, \"quickcart-\", \"\")\n| filter kind == \"deploy\"\n| dedup {stage, deployment.version, kind}\n| fields event.start, event.name = concat(stage, \" \", kind, \" \", deployment.version), event.description = concat(stage, \": \", kind, \" \", deployment.version, \" by \", coalesce(gitlab.merge_request.author, \"pipeline\"))",
+        "key": "05cf43ed-61a5-462e-98a2-134f12776eaf",
+        "name": "Deployments",
         "type": "query",
-        "visible": true,
-        "editable": true,
-        "input": "fetch spans, from: now()-7d\n| filter isNotNull(cicd.pipeline.run.id)\n| dedup k8s.cluster.name\n| fields k8s.cluster.name\n| sort k8s.cluster.name asc",
-        "multiple": false
+        "version": 2
       },
       {
-        "version": 3,
-        "key": "Project",
-        "name": "Project",
+        "dataMapping": {
+          "description": {
+            "field": "event.description",
+            "type": "string"
+          },
+          "name": {
+            "field": "event.name",
+            "type": "string"
+          },
+          "start": {
+            "field": "event.start",
+            "type": "timestamp"
+          }
+        },
+        "displaySettings": {
+          "color": "#D93B3B",
+          "referenceIds": [
+            "8",
+            "9"
+          ]
+        },
+        "input": "fetch events\n| filter event.type == \"CUSTOM_DEPLOYMENT\" and deployment.release_product == \"quickcart-demo\" and k8s.cluster.name == $Cluster\n| fieldsAdd kind = if(endsWith(deployment.name, \" rollback\"), \"rollback\", else: \"deploy\"), stage = replaceString(k8s.namespace.name, \"quickcart-\", \"\")\n| filter kind == \"rollback\"\n| dedup {stage, deployment.version, kind}\n| fields event.start, event.name = concat(stage, \" \", kind, \" \", deployment.version), event.description = concat(stage, \": \", kind, \" \", deployment.version, \" by \", coalesce(gitlab.merge_request.author, \"pipeline\"))",
+        "key": "e3dc91ee-3f8c-4c79-a887-a69f2e65f2d7",
+        "name": "Rollbacks",
         "type": "query",
-        "visible": true,
-        "editable": true,
-        "input": "fetch spans, from: now()-7d\n| filter isNotNull(cicd.pipeline.run.id)\n| dedup service.name\n| fields service.name\n| sort service.name asc",
-        "multiple": true,
-        "defaultValue": [
-          "3420b2ac-f1cf-4b24-b62d-61ba1ba8ed05*"
-        ]
+        "version": 2
       }
     ],
-    "tiles": {
+    "layouts": {
       "1": {
-        "type": "markdown",
-        "content": "## GitLab pipelines\nEvery GitLab pipeline run as a trace (pipeline → stages → jobs), sent by the OpenTelemetry collector. `rollback / API` runs are started by Dynatrace after a failed quality gate. Markers: deployments (blue) and rollbacks (red)."
-      },
-      "2": {
-        "title": "Pipeline runs",
-        "type": "data",
-        "query": "fetch spans\n| filter k8s.cluster.name == $Cluster and in(service.name, array($Project)) and isNotNull(cicd.pipeline.run.id)\n| filter isNull(span.parent_id)\n| summarize runs = count()",
-        "visualization": "singleValue",
-        "visualizationSettings": {},
-        "querySettings": {}
-      },
-      "3": {
-        "title": "Success rate (%)",
-        "type": "data",
-        "query": "fetch spans\n| filter k8s.cluster.name == $Cluster and in(service.name, array($Project)) and isNotNull(cicd.pipeline.run.id)\n| filter isNull(span.parent_id)\n| summarize success_rate = round(100.0 * countIf(cicd.pipeline.result == \"success\") / count(), decimals: 0)",
-        "visualization": "singleValue",
-        "visualizationSettings": {
-          "singleValue": {
-            "colorThresholdTarget": "background",
-            "recordField": "success_rate"
-          },
-          "coloring": {
-            "colorRules": [
-              {
-                "colorMode": "custom-color",
-                "comparator": "<",
-                "customColor": {
-                  "Default": "var(--dt-colors-charts-status-critical-default, #c4233b)"
-                },
-                "field": "success_rate",
-                "value": 100,
-                "type": "double"
-              },
-              {
-                "colorMode": "custom-color",
-                "comparator": "=",
-                "customColor": {
-                  "Default": "var(--dt-colors-charts-status-ideal-default, #2f6863)"
-                },
-                "field": "success_rate",
-                "value": 100,
-                "type": "double"
-              }
-            ]
-          }
-        },
-        "querySettings": {}
-      },
-      "4": {
-        "title": "Failed runs",
-        "type": "data",
-        "query": "fetch spans\n| filter k8s.cluster.name == $Cluster and in(service.name, array($Project)) and isNotNull(cicd.pipeline.run.id)\n| filter isNull(span.parent_id)\n| summarize failed = countIf(cicd.pipeline.result != \"success\")",
-        "visualization": "singleValue",
-        "visualizationSettings": {
-          "singleValue": {
-            "colorThresholdTarget": "background",
-            "recordField": "failed"
-          },
-          "coloring": {
-            "colorRules": [
-              {
-                "colorMode": "custom-color",
-                "comparator": "≥",
-                "customColor": {
-                  "Default": "var(--dt-colors-charts-status-critical-default, #c4233b)"
-                },
-                "field": "failed",
-                "value": 1,
-                "type": "double"
-              },
-              {
-                "colorMode": "custom-color",
-                "comparator": "=",
-                "customColor": {
-                  "Default": "var(--dt-colors-charts-status-ideal-default, #2f6863)"
-                },
-                "field": "failed",
-                "value": 0,
-                "type": "double"
-              }
-            ]
-          }
-        },
-        "querySettings": {}
-      },
-      "5": {
-        "title": "Rollbacks (by Dynatrace)",
-        "type": "data",
-        "query": "fetch spans\n| filter k8s.cluster.name == $Cluster and in(service.name, array($Project)) and isNotNull(cicd.pipeline.run.id)\n| filter isNull(span.parent_id)\n| summarize rollbacks = countIf(gitlab.pipeline.source == \"api\")",
-        "visualization": "singleValue",
-        "visualizationSettings": {
-          "singleValue": {
-            "colorThresholdTarget": "background",
-            "recordField": "rollbacks"
-          },
-          "coloring": {
-            "colorRules": [
-              {
-                "colorMode": "custom-color",
-                "comparator": "≥",
-                "customColor": {
-                  "Default": "var(--dt-colors-charts-status-critical-default, #c4233b)"
-                },
-                "field": "rollbacks",
-                "value": 1,
-                "type": "double"
-              },
-              {
-                "colorMode": "custom-color",
-                "comparator": "=",
-                "customColor": {
-                  "Default": "var(--dt-colors-charts-status-ideal-default, #2f6863)"
-                },
-                "field": "rollbacks",
-                "value": 0,
-                "type": "double"
-              }
-            ]
-          }
-        },
-        "querySettings": {}
-      },
-      "6": {
-        "title": "Avg pipeline duration (min)",
-        "type": "data",
-        "query": "fetch spans\n| filter k8s.cluster.name == $Cluster and in(service.name, array($Project)) and isNotNull(cicd.pipeline.run.id)\n| filter isNull(span.parent_id)\n| summarize avg_min = round(avg(toDouble(duration)) / 60000000000.0, decimals: 1)",
-        "visualization": "singleValue",
-        "visualizationSettings": {},
-        "querySettings": {}
-      },
-      "7": {
-        "title": "Avg quality-gate wait (min)",
-        "type": "data",
-        "query": "fetch spans\n| filter k8s.cluster.name == $Cluster and in(service.name, array($Project)) and isNotNull(cicd.pipeline.run.id)\n| filter isNotNull(cicd.pipeline.task.run.result)\n| filter span.name == \"quality-gate\"\n| summarize gate_min = round(avg(toDouble(duration)) / 60000000000.0, decimals: 1)",
-        "visualization": "singleValue",
-        "visualizationSettings": {},
-        "querySettings": {}
-      },
-      "8": {
-        "title": "Pipeline duration (min) per project",
-        "type": "data",
-        "query": "fetch spans\n| filter k8s.cluster.name == $Cluster and in(service.name, array($Project)) and isNotNull(cicd.pipeline.run.id)\n| filter isNull(span.parent_id)\n| makeTimeseries duration_min = max(toDouble(duration) / 60000000000.0), by: {project = service.name}",
-        "visualization": "lineChart",
-        "visualizationSettings": {},
-        "querySettings": {}
-      },
-      "9": {
-        "title": "Quality-gate wait (min)",
-        "type": "data",
-        "query": "fetch spans\n| filter k8s.cluster.name == $Cluster and in(service.name, array($Project)) and isNotNull(cicd.pipeline.run.id)\n| filter isNotNull(cicd.pipeline.task.run.result)\n| filter span.name == \"quality-gate\"\n| makeTimeseries gate_wait_min = avg(toDouble(duration) / 60000000000.0)",
-        "visualization": "lineChart",
-        "visualizationSettings": {},
-        "querySettings": {}
+        "h": 2,
+        "w": 24,
+        "x": 0,
+        "y": 0
       },
       "10": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 15
+      },
+      "11": {
+        "h": 7,
+        "w": 12,
+        "x": 0,
+        "y": 23
+      },
+      "12": {
+        "h": 7,
+        "w": 12,
+        "x": 12,
+        "y": 23
+      },
+      "2": {
+        "h": 3,
+        "w": 4,
+        "x": 0,
+        "y": 2
+      },
+      "3": {
+        "h": 3,
+        "w": 4,
+        "x": 4,
+        "y": 2
+      },
+      "4": {
+        "h": 3,
+        "w": 4,
+        "x": 8,
+        "y": 2
+      },
+      "5": {
+        "h": 3,
+        "w": 4,
+        "x": 12,
+        "y": 2
+      },
+      "6": {
+        "h": 3,
+        "w": 4,
+        "x": 16,
+        "y": 2
+      },
+      "7": {
+        "h": 3,
+        "w": 4,
+        "x": 20,
+        "y": 2
+      },
+      "8": {
+        "h": 7,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
+      "9": {
+        "h": 7,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      },
+      "13": {
+        "x": 0,
+        "y": 5,
+        "w": 24,
+        "h": 3
+      }
+    },
+    "settings": {
+      "annotations": {
+        "showGlobalPicker": true
+      }
+    },
+    "tiles": {
+      "1": {
+        "content": "## GitLab pipelines\nEvery GitLab pipeline run as a trace (pipeline → stages → jobs), sent by the OpenTelemetry collector. `rollback / API` runs are started by Dynatrace after a failed quality gate. Markers: deployments (blue) and rollbacks (red).",
+        "type": "markdown"
+      },
+      "10": {
+        "query": "fetch spans\n| filter k8s.cluster.name == $Cluster and in(service.name, array($Project)) and isNotNull(cicd.pipeline.run.id)\n| filter isNull(span.parent_id)\n| fields time = start_time, project = service.name, kind = if(gitlab.pipeline.source == \"api\", \"rollback / API\", else: gitlab.pipeline.source), result = cicd.pipeline.result, duration_min = round(toDouble(duration) / 60000000000.0, decimals: 1), branch = vcs.ref.head.name, change = splitString(vcs.ref.head.revision.message, \"\\n\")[0], actor = cicd.pipeline.run.actor.name, pipeline = cicd.pipeline.run.url.full\n| sort time desc\n| limit 100",
+        "querySettings": {},
         "title": "Pipeline runs",
         "type": "data",
-        "query": "fetch spans\n| filter k8s.cluster.name == $Cluster and in(service.name, array($Project)) and isNotNull(cicd.pipeline.run.id)\n| filter isNull(span.parent_id)\n| fields time = start_time, project = service.name, kind = if(gitlab.pipeline.source == \"api\", \"rollback / API\", else: gitlab.pipeline.source), result = cicd.pipeline.result, duration_min = round(toDouble(duration) / 60000000000.0, decimals: 1), branch = vcs.ref.head.name, change = splitString(vcs.ref.head.revision.message, \"\\n\")[0], actor = cicd.pipeline.run.actor.name, pipeline = cicd.pipeline.run.url.full\n| sort time desc\n| limit 100",
         "visualization": "table",
         "visualizationSettings": {
-          "table": {
-            "colorThresholdTarget": "background"
-          },
           "coloring": {
             "colorRules": [
               {
@@ -202,6 +166,12 @@
                   "Default": "var(--dt-colors-charts-status-critical-default, #c4233b)"
                 },
                 "field": "result",
+                "metadata": {
+                  "applyTo": "cell",
+                  "fields": [
+                    "result"
+                  ]
+                },
                 "value": "failed"
               },
               {
@@ -211,6 +181,12 @@
                   "Default": "var(--dt-colors-charts-status-ideal-default, #2f6863)"
                 },
                 "field": "result",
+                "metadata": {
+                  "applyTo": "cell",
+                  "fields": [
+                    "result"
+                  ]
+                },
                 "value": "success"
               },
               {
@@ -220,30 +196,33 @@
                   "Default": "var(--dt-colors-charts-status-warning-default, #eea53c)"
                 },
                 "field": "kind",
+                "metadata": {
+                  "applyTo": "cell",
+                  "fields": [
+                    "kind"
+                  ]
+                },
                 "value": "rollback / API"
               }
             ]
           }
-        },
-        "querySettings": {}
+        }
       },
       "11": {
+        "query": "fetch spans\n| filter k8s.cluster.name == $Cluster and in(service.name, array($Project)) and isNotNull(cicd.pipeline.run.id)\n| filter isNotNull(cicd.pipeline.task.run.result)\n| summarize avg_s = round(avg(toDouble(duration)) / 1000000000.0, decimals: 0), by: {job = span.name}\n| sort avg_s desc",
+        "querySettings": {},
         "title": "Average job duration (s)",
         "type": "data",
-        "query": "fetch spans\n| filter k8s.cluster.name == $Cluster and in(service.name, array($Project)) and isNotNull(cicd.pipeline.run.id)\n| filter isNotNull(cicd.pipeline.task.run.result)\n| summarize avg_s = round(avg(toDouble(duration)) / 1000000000.0, decimals: 0), by: {job = span.name}\n| sort avg_s desc",
         "visualization": "categoricalBarChart",
-        "visualizationSettings": {},
-        "querySettings": {}
+        "visualizationSettings": {}
       },
       "12": {
+        "query": "fetch spans\n| filter k8s.cluster.name == $Cluster and in(service.name, array($Project)) and isNotNull(cicd.pipeline.run.id)\n| filter isNotNull(cicd.pipeline.task.run.result)\n| summarize runs = count(), failed = countIf(cicd.pipeline.task.run.result != \"success\"), avg_s = round(avg(toDouble(duration)) / 1000000000.0, decimals: 0), max_s = round(max(toDouble(duration)) / 1000000000.0, decimals: 0), by: {project = service.name, job = span.name}\n| sort project asc, avg_s desc",
+        "querySettings": {},
         "title": "Jobs: runs, failures, duration",
         "type": "data",
-        "query": "fetch spans\n| filter k8s.cluster.name == $Cluster and in(service.name, array($Project)) and isNotNull(cicd.pipeline.run.id)\n| filter isNotNull(cicd.pipeline.task.run.result)\n| summarize runs = count(), failed = countIf(cicd.pipeline.task.run.result != \"success\"), avg_s = round(avg(toDouble(duration)) / 1000000000.0, decimals: 0), max_s = round(max(toDouble(duration)) / 1000000000.0, decimals: 0), by: {project = service.name, job = span.name}\n| sort project asc, avg_s desc",
         "visualization": "table",
         "visualizationSettings": {
-          "table": {
-            "colorThresholdTarget": "background"
-          },
           "coloring": {
             "colorRules": [
               {
@@ -253,151 +232,204 @@
                   "Default": "var(--dt-colors-charts-status-critical-default, #c4233b)"
                 },
                 "field": "failed",
-                "value": 1,
-                "type": "double"
+                "metadata": {
+                  "applyTo": "cell",
+                  "fields": [
+                    "failed"
+                  ]
+                },
+                "type": "double",
+                "value": 1
               }
             ]
           }
-        },
+        }
+      },
+      "2": {
+        "query": "fetch spans\n| filter k8s.cluster.name == $Cluster and in(service.name, array($Project)) and isNotNull(cicd.pipeline.run.id)\n| filter isNull(span.parent_id)\n| summarize runs = count()",
+        "querySettings": {},
+        "title": "Pipeline runs",
+        "type": "data",
+        "visualization": "singleValue",
+        "visualizationSettings": {}
+      },
+      "3": {
+        "query": "fetch spans\n| filter k8s.cluster.name == $Cluster and in(service.name, array($Project)) and isNotNull(cicd.pipeline.run.id)\n| filter isNull(span.parent_id)\n| summarize success_rate = round(100.0 * countIf(cicd.pipeline.result == \"success\") / count(), decimals: 0)",
+        "querySettings": {},
+        "title": "Success rate (%)",
+        "type": "data",
+        "visualization": "singleValue",
+        "visualizationSettings": {
+          "coloring": {
+            "colorRules": [
+              {
+                "colorMode": "custom-color",
+                "comparator": "<",
+                "customColor": {
+                  "Default": "var(--dt-colors-charts-status-critical-default, #c4233b)"
+                },
+                "field": "success_rate",
+                "type": "double",
+                "value": 100
+              },
+              {
+                "colorMode": "custom-color",
+                "comparator": "=",
+                "customColor": {
+                  "Default": "var(--dt-colors-charts-status-ideal-default, #2f6863)"
+                },
+                "field": "success_rate",
+                "type": "double",
+                "value": 100
+              }
+            ]
+          },
+          "singleValue": {
+            "colorThresholdTarget": "background",
+            "recordField": "success_rate"
+          }
+        }
+      },
+      "4": {
+        "query": "fetch spans\n| filter k8s.cluster.name == $Cluster and in(service.name, array($Project)) and isNotNull(cicd.pipeline.run.id)\n| filter isNull(span.parent_id)\n| summarize failed = countIf(cicd.pipeline.result != \"success\")",
+        "querySettings": {},
+        "title": "Failed runs",
+        "type": "data",
+        "visualization": "singleValue",
+        "visualizationSettings": {
+          "coloring": {
+            "colorRules": [
+              {
+                "colorMode": "custom-color",
+                "comparator": "≥",
+                "customColor": {
+                  "Default": "var(--dt-colors-charts-status-critical-default, #c4233b)"
+                },
+                "field": "failed",
+                "type": "double",
+                "value": 1
+              },
+              {
+                "colorMode": "custom-color",
+                "comparator": "=",
+                "customColor": {
+                  "Default": "var(--dt-colors-charts-status-ideal-default, #2f6863)"
+                },
+                "field": "failed",
+                "type": "double",
+                "value": 0
+              }
+            ]
+          },
+          "singleValue": {
+            "colorThresholdTarget": "background",
+            "recordField": "failed"
+          }
+        }
+      },
+      "5": {
+        "query": "fetch spans\n| filter k8s.cluster.name == $Cluster and in(service.name, array($Project)) and isNotNull(cicd.pipeline.run.id)\n| filter isNull(span.parent_id)\n| summarize rollbacks = countIf(gitlab.pipeline.source == \"api\")",
+        "querySettings": {},
+        "title": "Rollbacks (by Dynatrace)",
+        "type": "data",
+        "visualization": "singleValue",
+        "visualizationSettings": {
+          "coloring": {
+            "colorRules": [
+              {
+                "colorMode": "custom-color",
+                "comparator": "≥",
+                "customColor": {
+                  "Default": "var(--dt-colors-charts-status-critical-default, #c4233b)"
+                },
+                "field": "rollbacks",
+                "type": "double",
+                "value": 1
+              },
+              {
+                "colorMode": "custom-color",
+                "comparator": "=",
+                "customColor": {
+                  "Default": "var(--dt-colors-charts-status-ideal-default, #2f6863)"
+                },
+                "field": "rollbacks",
+                "type": "double",
+                "value": 0
+              }
+            ]
+          },
+          "singleValue": {
+            "colorThresholdTarget": "background",
+            "recordField": "rollbacks"
+          }
+        }
+      },
+      "6": {
+        "query": "fetch spans\n| filter k8s.cluster.name == $Cluster and in(service.name, array($Project)) and isNotNull(cicd.pipeline.run.id)\n| filter isNull(span.parent_id)\n| summarize avg_min = round(avg(toDouble(duration)) / 60000000000.0, decimals: 1)",
+        "querySettings": {},
+        "title": "Avg pipeline duration (min)",
+        "type": "data",
+        "visualization": "singleValue",
+        "visualizationSettings": {}
+      },
+      "7": {
+        "query": "fetch spans\n| filter k8s.cluster.name == $Cluster and in(service.name, array($Project)) and isNotNull(cicd.pipeline.run.id)\n| filter isNotNull(cicd.pipeline.task.run.result)\n| filter span.name == \"quality-gate\"\n| summarize gate_min = round(avg(toDouble(duration)) / 60000000000.0, decimals: 1)",
+        "querySettings": {},
+        "title": "Avg quality-gate wait (min)",
+        "type": "data",
+        "visualization": "singleValue",
+        "visualizationSettings": {}
+      },
+      "8": {
+        "query": "fetch spans\n| filter k8s.cluster.name == $Cluster and in(service.name, array($Project)) and isNotNull(cicd.pipeline.run.id)\n| filter isNull(span.parent_id)\n| makeTimeseries duration_min = max(toDouble(duration) / 60000000000.0), by: {project = service.name}",
+        "querySettings": {},
+        "title": "Pipeline duration (min) per project",
+        "type": "data",
+        "visualization": "lineChart",
+        "visualizationSettings": {}
+      },
+      "9": {
+        "query": "fetch spans\n| filter k8s.cluster.name == $Cluster and in(service.name, array($Project)) and isNotNull(cicd.pipeline.run.id)\n| filter isNotNull(cicd.pipeline.task.run.result)\n| filter span.name == \"quality-gate\"\n| makeTimeseries gate_wait_min = avg(toDouble(duration) / 60000000000.0)",
+        "querySettings": {},
+        "title": "Quality-gate wait (min)",
+        "type": "data",
+        "visualization": "lineChart",
+        "visualizationSettings": {}
+      },
+      "13": {
+        "type": "data",
+        "title": "GitLab pipeline service in Dynatrace",
+        "query": "fetch spans\n| filter k8s.cluster.name == $Cluster and in(service.name, array($Project)) and isNotNull(cicd.pipeline.run.id) and isNull(span.parent_id)\n| summarize runs = count(), last_run = max(start_time), by: {project = service.name, dt.entity.service}\n| fieldsAdd open_in_dynatrace = concat(\"https://ggg43721.sprint.apps.dynatracelabs.com/ui/intent/dynatrace.services/view-entity-dt.smartscape.service#\", encodeUrl(concat(\"{\\\"nodeId\\\":\\\"\", dt.entity.service, \"\\\"}\")))",
+        "visualization": "table",
+        "visualizationSettings": {},
         "querySettings": {}
       }
     },
-    "layouts": {
-      "1": {
-        "x": 0,
-        "y": 0,
-        "w": 24,
-        "h": 2
-      },
-      "2": {
-        "x": 0,
-        "y": 2,
-        "w": 4,
-        "h": 3
-      },
-      "3": {
-        "x": 4,
-        "y": 2,
-        "w": 4,
-        "h": 3
-      },
-      "4": {
-        "x": 8,
-        "y": 2,
-        "w": 4,
-        "h": 3
-      },
-      "5": {
-        "x": 12,
-        "y": 2,
-        "w": 4,
-        "h": 3
-      },
-      "6": {
-        "x": 16,
-        "y": 2,
-        "w": 4,
-        "h": 3
-      },
-      "7": {
-        "x": 20,
-        "y": 2,
-        "w": 4,
-        "h": 3
-      },
-      "8": {
-        "x": 0,
-        "y": 5,
-        "w": 12,
-        "h": 7
-      },
-      "9": {
-        "x": 12,
-        "y": 5,
-        "w": 12,
-        "h": 7
-      },
-      "10": {
-        "x": 0,
-        "y": 12,
-        "w": 24,
-        "h": 8
-      },
-      "11": {
-        "x": 0,
-        "y": 20,
-        "w": 12,
-        "h": 7
-      },
-      "12": {
-        "x": 12,
-        "y": 20,
-        "w": 12,
-        "h": 7
-      }
-    },
-    "settings": {
-      "annotations": {
-        "showGlobalPicker": true
-      }
-    },
-    "annotations": [
+    "variables": [
       {
-        "version": 2,
-        "key": "05cf43ed-61a5-462e-98a2-134f12776eaf",
-        "name": "Deployments",
+        "editable": true,
+        "input": "fetch spans, from: now()-7d\n| filter isNotNull(cicd.pipeline.run.id)\n| dedup k8s.cluster.name\n| fields k8s.cluster.name\n| sort k8s.cluster.name asc",
+        "key": "Cluster",
+        "multiple": false,
+        "name": "Cluster",
         "type": "query",
-        "input": "fetch events\n| filter event.type == \"CUSTOM_DEPLOYMENT\" and deployment.release_product == \"quickcart-demo\" and k8s.cluster.name == $Cluster\n| fieldsAdd kind = if(endsWith(deployment.name, \" rollback\"), \"rollback\", else: \"deploy\"), stage = replaceString(k8s.namespace.name, \"quickcart-\", \"\")\n| filter kind == \"deploy\"\n| dedup {stage, deployment.version, kind}\n| fields event.start, event.name = concat(stage, \" \", kind, \" \", deployment.version), event.description = concat(stage, \": \", kind, \" \", deployment.version, \" by \", coalesce(gitlab.merge_request.author, \"pipeline\"))",
-        "dataMapping": {
-          "name": {
-            "field": "event.name",
-            "type": "string"
-          },
-          "description": {
-            "field": "event.description",
-            "type": "string"
-          },
-          "start": {
-            "field": "event.start",
-            "type": "timestamp"
-          }
-        },
-        "displaySettings": {
-          "referenceIds": [
-            "8",
-            "9"
-          ],
-          "color": "#2F6FDE"
-        }
+        "version": 3,
+        "visible": true
       },
       {
-        "version": 2,
-        "key": "e3dc91ee-3f8c-4c79-a887-a69f2e65f2d7",
-        "name": "Rollbacks",
+        "defaultValue": [
+          "3420b2ac-f1cf-4b24-b62d-61ba1ba8ed05*"
+        ],
+        "editable": true,
+        "input": "fetch spans, from: now()-7d\n| filter isNotNull(cicd.pipeline.run.id)\n| dedup service.name\n| fields service.name\n| sort service.name asc",
+        "key": "Project",
+        "multiple": true,
+        "name": "Project",
         "type": "query",
-        "input": "fetch events\n| filter event.type == \"CUSTOM_DEPLOYMENT\" and deployment.release_product == \"quickcart-demo\" and k8s.cluster.name == $Cluster\n| fieldsAdd kind = if(endsWith(deployment.name, \" rollback\"), \"rollback\", else: \"deploy\"), stage = replaceString(k8s.namespace.name, \"quickcart-\", \"\")\n| filter kind == \"rollback\"\n| dedup {stage, deployment.version, kind}\n| fields event.start, event.name = concat(stage, \" \", kind, \" \", deployment.version), event.description = concat(stage, \": \", kind, \" \", deployment.version, \" by \", coalesce(gitlab.merge_request.author, \"pipeline\"))",
-        "dataMapping": {
-          "name": {
-            "field": "event.name",
-            "type": "string"
-          },
-          "description": {
-            "field": "event.description",
-            "type": "string"
-          },
-          "start": {
-            "field": "event.start",
-            "type": "timestamp"
-          }
-        },
-        "displaySettings": {
-          "referenceIds": [
-            "8",
-            "9"
-          ],
-          "color": "#D93B3B"
-        }
+        "version": 3,
+        "visible": true
       }
-    ]
+    ],
+    "version": 21
   }
 }
